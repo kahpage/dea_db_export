@@ -12,7 +12,7 @@ from export_utils import FolderTree, precompute_structures, serialize_recursive
 PATH_CURRENT_DIR = Path(__file__).parent
 PATH_DEA_DB_DIR = PATH_CURRENT_DIR.parent
 PATH_databases_to_export = PATH_DEA_DB_DIR / "event_groups"
-PATH_exported = PATH_CURRENT_DIR / "exported"
+PATH_exported = PATH_CURRENT_DIR / "exports"
 
 DB_FILE_ENCODING = "utf-8"
 STATIC_JSON_INDENT: int | None = None # None to remove indent, int otherwise (e.g. 4)
