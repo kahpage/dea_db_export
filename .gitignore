@@ -1,0 +1,11 @@
+# General
+**/__pycache__/
+**/*_.*
+*_/
+!__init__.py
+*.code-workspace
+
+# helper folder
+helper/**/*.htm
+helper/**/*.html
+helper/**/*.json
