@@ -48,7 +48,6 @@ class SummaryEventEntry(TypedDict, total=False):
     name: str
     dates: str
     media: list[str]
-    location: dict[str, Any]
     circle_count: int
     last_edited: str
 
@@ -61,6 +60,24 @@ class SummaryGroupEntry(TypedDict, total=False):
 
 # Defined as TypeAlias of dict[str, Any] to accommodate dynamic subfolder keys
 SummaryIndexNode: TypeAlias = dict[str, Any]
+
+# =====================================================================
+#  Map Index Export - Data Structures
+# =====================================================================
+
+class MapEventEntry(TypedDict, total=False):
+    """Map entry details for a single event."""
+    name: str
+    dates: str
+    location: dict[str, Any]
+
+class MapGroupEntry(TypedDict, total=False):
+    """Map entry details for an event group database."""
+    name: str
+    events: dict[str, MapEventEntry]
+
+# Defined as TypeAlias of dict[str, Any] to accommodate dynamic subfolder keys
+MapIndexNode: TypeAlias = dict[str, Any]
 
 # =====================================================================
 #  Event List Export - Generation Function
@@ -145,7 +162,6 @@ def generate_summary_index(complete_recursive: FolderTree) -> SummaryIndexNode:
               "name": str,
               "dates": str,
               "media": list[str] (optional),
-              "location": dict (optional),
               "circle_count": int (optional),
               "last_edited": str (optional)
             }
@@ -171,7 +187,6 @@ def generate_summary_index(complete_recursive: FolderTree) -> SummaryIndexNode:
                 event_objects: dict[str, SummaryEventEntry] = {}
                 for event in val.events:
                     media = [m.path for m in event.media] if event.media else []
-                    location = event.locations[0].get_json() if (event.locations and len(event.locations) > 0) else None
                     
                     event_entry: SummaryEventEntry = {
                         "name": event.aliases[0],
@@ -179,8 +194,6 @@ def generate_summary_index(complete_recursive: FolderTree) -> SummaryIndexNode:
                     }
                     if media:
                         event_entry["media"] = media
-                    if location:
-                        event_entry["location"] = location
                     if event.circles:
                         event_entry["circle_count"] = len(event.circles)
                     if event.last_edited:
@@ -204,6 +217,57 @@ def generate_summary_index(complete_recursive: FolderTree) -> SummaryIndexNode:
                 total_count += sub_count
                 
         res: SummaryIndexNode = {
+            "@event_groups_here": event_groups_here,
+            "@event_groups_total_count": total_count
+        }
+        res.update(subfolders)
+        return res, total_count
+
+    index_data, _ = build_node(complete_recursive)
+    return index_data
+
+# =====================================================================
+#  Map Index Export - Generation Function
+# =====================================================================
+
+def generate_map_index(complete_recursive: FolderTree) -> MapIndexNode:
+    """
+    Generates the map index from the complete recursive structure.
+    
+    Structure format is similar to summary index but only preserves locations.
+    """
+    def build_node(node: FolderTree) -> tuple[MapIndexNode, int]:
+        event_groups_here: dict[str, MapGroupEntry] = {}
+        subfolders: dict[str, Any] = {}
+        total_count = 0
+        
+        for name in sorted(node.keys()):
+            val = node[name]
+            from db_structs import EventGroup
+            if isinstance(val, EventGroup):
+                event_objects: dict[str, MapEventEntry] = {}
+                for event in val.events:
+                    location = event.locations[0].get_json() if (event.locations and len(event.locations) > 0) else None
+                    event_entry: MapEventEntry = {
+                        "name": event.aliases[0],
+                        "dates": event.dates
+                    }
+                    if location:
+                        event_entry["location"] = location
+                    event_objects[event.aliases[0]] = event_entry
+                
+                group_entry: MapGroupEntry = {
+                    "name": val.aliases[0],
+                    "events": event_objects
+                }
+                event_groups_here[name] = group_entry
+                total_count += 1
+            elif isinstance(val, dict):
+                sub_res, sub_count = build_node(val)
+                subfolders[name] = sub_res
+                total_count += sub_count
+                
+        res: MapIndexNode = {
             "@event_groups_here": event_groups_here,
             "@event_groups_total_count": total_count
         }
@@ -369,6 +433,15 @@ if __name__ == "__main__":
     print(f"Saving summary index to {path_summary_index}...")
     with path_summary_index.open("w", encoding=DB_FILE_ENCODING) as f:
         json.dump(summary_index, f, indent=STATIC_JSON_INDENT, ensure_ascii=False)
+        
+    # ===== Export map index =====
+    print("====== Generating Map Index... ======")
+    map_index = generate_map_index(structures.complete_recursive)
+    
+    path_map_index = PATH_exported / "map_index.json"
+    print(f"Saving map index to {path_map_index}...")
+    with path_map_index.open("w", encoding=DB_FILE_ENCODING) as f:
+        json.dump(map_index, f, indent=STATIC_JSON_INDENT, ensure_ascii=False)
         
     # ===== Export circle indexes =====
     print("====== Exporting Circle Indexes... ======")
